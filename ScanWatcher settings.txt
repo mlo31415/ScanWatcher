@@ -1,13 +1,13 @@
-# ScanRenamer settings
+# ScanWatcher settings
 
-# Watch Folder is the folder which ScanRenamer watches for new scans, and Scan Prefix is the
+# Watch Folder is the folder which ScanWatcher watches for new scans, and Scan Prefix is the
 # base name the scanner gives them.  So long as no files have been supplied by hand (dropped
 # on the window or chosen with Select Files...), every file in that folder named
 # "{Scan Prefix}.jpg" or "{Scan Prefix}_nnn.jpg" (.jpeg counts too) is loaded into the batch
 # in alphabetical order, and pages are added to the list as they are scanned, up until
 # Rename is pressed.
 #
-# The lines are read when ScanRenamer starts, so change them with ScanRenamer shut down.
+# The lines are read when ScanWatcher starts, so change them with ScanWatcher shut down.
 # Watching needs both of them: with either missing (or its value commented out with a '#'),
 # nothing is watched for.  A path may be quoted or not, as you please.
 

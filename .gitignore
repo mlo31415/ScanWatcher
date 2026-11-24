@@ -14,7 +14,7 @@ dist/
 .idea/
 
 # Runtime / per-user state (the retained name and the table of renames done)
-ScanRenamer state.json
+ScanWatcher state.json
 
 # Working notes
 *.docx

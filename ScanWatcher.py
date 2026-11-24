@@ -1,5 +1,5 @@
 """
-ScanRenamer.py
+ScanWatcher.py
 
 Renames a batch of scanned files (in place) to the standard form
 
@@ -50,7 +50,7 @@ sharing its text, which is where the scanner's own first page ("z-.jpg" before
 and are never asked about.
 
 The folder to watch and the prefix the scanner names its files with come from the
-"Watch Folder=" and "Scan Prefix=" lines of "ScanRenamer settings.txt" in the
+"Watch Folder=" and "Scan Prefix=" lines of "ScanWatcher settings.txt" in the
 program's directory, which is read when the program starts; watching needs both
 of them.  While no files have been supplied by hand, every file in that folder
 named "{prefix}.jpg" or "{prefix}_nnn.jpg" (.jpeg counts too) is loaded into the
@@ -79,7 +79,7 @@ window is closed, so a name typed but not yet used is not lost.  The number is
 cleared after each successful batch, since it always changes, and the cursor is
 put in the number box ready for the next one.
 
-Every batch is written to "ScanRenamer state.json" alongside this program as a
+Every batch is written to "ScanWatcher state.json" alongside this program as a
 table of old-name/new-name pairs, and Undo Last Rename puts the most recent batch
 back the way it was -- including the number it was renamed with, which goes back
 into the dialog so that the batch can be done again with whatever needed
@@ -92,7 +92,7 @@ under its own name rather than being written over.
 
 A rename which is interrupted part way -- the program killed, the machine losing
 power -- leaves the files it had already moved under temporary names ending in
-".ScanRenamerTmp".  These are looked for in the watched folder at startup and
+".ScanWatcherTmp".  These are looked for in the watched folder at startup and
 offered back under their own names.
 """
 
@@ -106,8 +106,8 @@ import wx
 
 # The settings, which the user edits, and the persistent state (the retained title string
 # and the table of renames done so far), which the program maintains.
-SettingsFileName="ScanRenamer settings.txt"
-StateFileName="ScanRenamer state.json"
+SettingsFileName="ScanWatcher settings.txt"
+StateFileName="ScanWatcher state.json"
 
 # Characters which Windows will not accept in a file name.
 IllegalCharacters='\\/:*?"<>|'
@@ -118,7 +118,7 @@ ScanExtensions=r"\.jpe?g"
 # What pass 1 of a rename tacks onto a name to move a file out of its own way.  A file is
 # under one of these names only while a batch is being renamed -- unless the program is
 # stopped in the middle of one, and then they are left behind for LeftoverTempFiles to find.
-TempSuffix=".ScanRenamerTmp"
+TempSuffix=".ScanWatcherTmp"
 
 # How often the watched folder is looked at, in milliseconds.
 WatchInterval=1000
@@ -190,14 +190,14 @@ def ReadState() -> dict:
     except OSError:
         return empty
     except json.JSONDecodeError as e:
-        aside=os.path.join(ProgramDirectory(), f"ScanRenamer state (damaged {datetime.now():%Y-%m-%d %H%M%S}).json")
+        aside=os.path.join(ProgramDirectory(), f"ScanWatcher state (damaged {datetime.now():%Y-%m-%d %H%M%S}).json")
         try:
             os.replace(StateFilePath(), aside)
             saved=f"\n\nIt has been put aside as '{os.path.basename(aside)}' in case the renames it lists are wanted."
         except OSError:
             saved=""
         wx.MessageBox(f"'{StateFileName}' cannot be read ({e}), so Undo Last Rename has nothing to work "
-                      f"from until a new batch is renamed.{saved}", "ScanRenamer", wx.OK|wx.ICON_ERROR)
+                      f"from until a new batch is renamed.{saved}", "ScanWatcher", wx.OK|wx.ICON_ERROR)
         return empty
 
     if "Title" not in state:
@@ -219,7 +219,7 @@ def WriteState(state: dict) -> None:
             os.fsync(f.fileno())
         os.replace(partial, StateFilePath())
     except OSError as e:
-        wx.MessageBox(f"Unable to save {StateFileName}:\n{e}", "ScanRenamer", wx.OK|wx.ICON_ERROR)
+        wx.MessageBox(f"Unable to save {StateFileName}:\n{e}", "ScanWatcher", wx.OK|wx.ICON_ERROR)
 
 
 # Rename a list of (old, new) pairs in two passes, so that the new names are free to be
@@ -423,7 +423,7 @@ def ExpandSupplied(paths: list[str]) -> list[str]:
 # the batch under the work: the files renamed would be the ones the work started with, and
 # the display would be showing another set entirely.
 class WatchingPaused:
-    def __init__(self, frame: "ScanRenamerFrame") -> None:
+    def __init__(self, frame: "ScanWatcherFrame") -> None:
         self.Frame=frame
         self.WasRunning=False
 
@@ -437,8 +437,8 @@ class WatchingPaused:
 
 
 # Accepts files dropped on the window and hands them to the frame.
-class ScanRenamerDropTarget(wx.FileDropTarget):
-    def __init__(self, frame: "ScanRenamerFrame") -> None:
+class ScanWatcherDropTarget(wx.FileDropTarget):
+    def __init__(self, frame: "ScanWatcherFrame") -> None:
         wx.FileDropTarget.__init__(self)
         self.Frame=frame
 
@@ -447,9 +447,9 @@ class ScanRenamerDropTarget(wx.FileDropTarget):
         return True
 
 
-class ScanRenamerFrame(wx.Frame):
+class ScanWatcherFrame(wx.Frame):
     def __init__(self) -> None:
-        wx.Frame.__init__(self, None, title="ScanRenamer", size=wx.Size(760, 520))
+        wx.Frame.__init__(self, None, title="ScanWatcher", size=wx.Size(760, 520))
 
         self.State=ReadState()
         self.Files: list[str]=[]
@@ -512,8 +512,8 @@ class ScanRenamerFrame(wx.Frame):
 
         # Files may be dropped anywhere on the window.  The list fills most of it and would
         # otherwise swallow the drops itself, so it gets a drop target of its own.
-        panel.SetDropTarget(ScanRenamerDropTarget(self))
-        self.lcFiles.SetDropTarget(ScanRenamerDropTarget(self))
+        panel.SetDropTarget(ScanWatcherDropTarget(self))
+        self.lcFiles.SetDropTarget(ScanWatcherDropTarget(self))
 
         self.lcFiles.Bind(wx.EVT_SIZE, self.OnListResized)
         self.lcFiles.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnSelectionChanged)
@@ -561,19 +561,19 @@ class ScanRenamerFrame(wx.Frame):
             names+=f"\n    ...and {len(leftovers)-6} more"
         answer=wx.MessageBox(f"{len(leftovers)} files in {self.WatchFolder} were left behind by a rename "
                              f"which did not finish.\n\nPut them back under their own names?\n\n{names}",
-                             "ScanRenamer", wx.YES_NO|wx.ICON_QUESTION)
+                             "ScanWatcher", wx.YES_NO|wx.ICON_QUESTION)
         if answer != wx.YES:
             return
 
         report=ConflictReport(leftovers)
         if report != "":
             wx.MessageBox(f"They cannot be put back as things stand:\n\n{report}\n\nNothing was put back.",
-                          "ScanRenamer", wx.OK|wx.ICON_ERROR)
+                          "ScanWatcher", wx.OK|wx.ICON_ERROR)
             return
 
         msg=RenameFiles(leftovers)
         if msg != "":
-            wx.MessageBox(msg, "ScanRenamer", wx.OK|wx.ICON_ERROR)
+            wx.MessageBox(msg, "ScanWatcher", wx.OK|wx.ICON_ERROR)
             return
 
         self.stStatus.SetLabel(f"Put back {len(leftovers)} files left over from an unfinished rename.")
@@ -600,7 +600,7 @@ class ScanRenamerFrame(wx.Frame):
     def SetSuppliedFiles(self, paths: list[str]) -> None:
         files=ExpandSupplied(paths)
         if len(files) == 0:
-            wx.MessageBox("There are no files there to rename.", "ScanRenamer", wx.OK|wx.ICON_INFORMATION)
+            wx.MessageBox("There are no files there to rename.", "ScanWatcher", wx.OK|wx.ICON_INFORMATION)
             return
         self.SetFiles(files)
 
@@ -769,17 +769,17 @@ class ScanRenamerFrame(wx.Frame):
         number=self.tNumber.GetValue().strip()
 
         if len(self.Files) == 0:
-            wx.MessageBox("There are no files to rename.", "ScanRenamer", wx.OK|wx.ICON_INFORMATION)
+            wx.MessageBox("There are no files to rename.", "ScanWatcher", wx.OK|wx.ICON_INFORMATION)
             return
         if title == "":
-            wx.MessageBox("You must supply a name.", "ScanRenamer", wx.OK|wx.ICON_INFORMATION)
+            wx.MessageBox("You must supply a name.", "ScanWatcher", wx.OK|wx.ICON_INFORMATION)
             return
         if number == "":
-            wx.MessageBox("You must supply a number.", "ScanRenamer", wx.OK|wx.ICON_INFORMATION)
+            wx.MessageBox("You must supply a number.", "ScanWatcher", wx.OK|wx.ICON_INFORMATION)
             return
         bad=[c for c in IllegalCharacters if c in title+number]
         if len(bad) > 0:
-            wx.MessageBox(f"The name and number may not contain {' '.join(bad)}", "ScanRenamer", wx.OK|wx.ICON_INFORMATION)
+            wx.MessageBox(f"The name and number may not contain {' '.join(bad)}", "ScanWatcher", wx.OK|wx.ICON_INFORMATION)
             return
 
         # Rename picks out rows if any are picked out, and the whole batch if none are.  A
@@ -789,7 +789,7 @@ class ScanRenamerFrame(wx.Frame):
         if rows != list(range(rows[0], rows[0]+len(rows))):
             wx.MessageBox("The files picked out are not all together.\n\nRename works on one unbroken run of "
                           "files -- click the first and shift-click the last -- or on the whole batch when "
-                          "none are picked out.", "ScanRenamer", wx.OK|wx.ICON_INFORMATION)
+                          "none are picked out.", "ScanWatcher", wx.OK|wx.ICON_INFORMATION)
             return
 
         # The files are numbered in the order in which they were supplied.  If that is not
@@ -803,7 +803,7 @@ class ScanRenamerFrame(wx.Frame):
                                        "compared as text except for a number at the end, which is compared "
                                        "as a number, so page10 follows page9.\n"
                                        "Keep as supplied:  number them in the order they were supplied.",
-                                 "ScanRenamer", wx.YES_NO|wx.CANCEL|wx.ICON_QUESTION)
+                                 "ScanWatcher", wx.YES_NO|wx.CANCEL|wx.ICON_QUESTION)
             dlg.SetYesNoCancelLabels("Sort by name", "Keep as supplied", "Cancel")
             answer=dlg.ShowModal()
             dlg.Destroy()
@@ -836,19 +836,19 @@ class ScanRenamerFrame(wx.Frame):
         if len(looksScanned) > 0:
             wx.MessageBox(f"{os.path.basename(looksScanned[0])} would look like a new scan, and would be "
                           f"picked up again by the folder watcher.\n\nNothing was renamed.",
-                          "ScanRenamer", wx.OK|wx.ICON_ERROR)
+                          "ScanWatcher", wx.OK|wx.ICON_ERROR)
             return
 
         # Nothing is ever renamed over the top of an existing file.
         report=ConflictReport(pairs)
         if report != "":
             wx.MessageBox(f"The batch cannot be renamed as it stands:\n\n{report}\n\nNothing was renamed.",
-                          "ScanRenamer", wx.OK|wx.ICON_ERROR)
+                          "ScanWatcher", wx.OK|wx.ICON_ERROR)
             return
 
         msg=RenameFiles(pairs)
         if msg != "":
-            wx.MessageBox(msg, "ScanRenamer", wx.OK|wx.ICON_ERROR)
+            wx.MessageBox(msg, "ScanWatcher", wx.OK|wx.ICON_ERROR)
             return
 
         # Remember the batch so that it can be undone, keep the name for the next batch and
@@ -893,7 +893,7 @@ class ScanRenamerFrame(wx.Frame):
         missing=[n for n, _ in pairs if not os.path.exists(n)]
         if len(missing) > 0:
             wx.MessageBox(f"{os.path.basename(missing[0])} is no longer there, so the rename of "
-                          f"{batch['When']} cannot be undone.", "ScanRenamer", wx.OK|wx.ICON_ERROR)
+                          f"{batch['When']} cannot be undone.", "ScanWatcher", wx.OK|wx.ICON_ERROR)
             return
 
         # Nor does putting a batch back overwrite anything -- a scan made since the rename may
@@ -901,12 +901,12 @@ class ScanRenamerFrame(wx.Frame):
         report=ConflictReport(pairs)
         if report != "":
             wx.MessageBox(f"The files cannot be put back as things stand:\n\n{report}\n\n"
-                          f"Nothing was put back.", "ScanRenamer", wx.OK|wx.ICON_ERROR)
+                          f"Nothing was put back.", "ScanWatcher", wx.OK|wx.ICON_ERROR)
             return
 
         msg=RenameFiles(pairs)
         if msg != "":
-            wx.MessageBox(msg, "ScanRenamer", wx.OK|wx.ICON_ERROR)
+            wx.MessageBox(msg, "ScanWatcher", wx.OK|wx.ICON_ERROR)
             return
 
         self.State["Batches"].pop()
@@ -937,7 +937,7 @@ class ScanRenamerFrame(wx.Frame):
         if len(self.Files) > 0 and event.CanVeto():
             with WatchingPaused(self):
                 answer=wx.MessageBox(f"{len(self.Files)} files have not been renamed yet.\n\nExit anyway?",
-                                     "ScanRenamer", wx.YES_NO|wx.ICON_QUESTION)
+                                     "ScanWatcher", wx.YES_NO|wx.ICON_QUESTION)
             if answer != wx.YES:
                 event.Veto()
                 return
@@ -957,7 +957,7 @@ class ScanRenamerFrame(wx.Frame):
 
 def main() -> None:
     app=wx.App(False)
-    frame=ScanRenamerFrame()
+    frame=ScanWatcherFrame()
     frame.Show()
     app.MainLoop()
     sys.exit()

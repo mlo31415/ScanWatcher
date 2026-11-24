@@ -1,4 +1,4 @@
-# ScanRenamer
+# ScanWatcher
 
 Renames a batch of scanned files, in place, to the standard form
 
@@ -17,7 +17,7 @@ Each file keeps its own extension.
 ## Using it
 
 Supply the files in any of three ways: drop them on the window, choose them with **Select
-Files...**, or let ScanRenamer pick them up from a watched folder (below).  A dropped folder
+Files...**, or let ScanWatcher pick them up from a watched folder (below).  A dropped folder
 stands for the files directly inside it, in name order; dropping something with no
 files in it says so rather than appearing to do nothing.
 
@@ -49,7 +49,7 @@ typed.  With neither filled in there is only the page numbering to show, and it 
 needs both.
 
 The order in which the files are supplied is the order in which they are numbered.  If that
-order is not name order, ScanRenamer says so and offers a choice of sorting them by name,
+order is not name order, ScanWatcher says so and offers a choice of sorting them by name,
 numbering them as supplied, or cancelling.
 
 Sorting renumbers the files, so it does not rename them there and then -- that would give
@@ -94,7 +94,7 @@ window's own close box asks the same question.
 
 ## Nothing is ever overwritten
 
-A rename never writes over an existing file.  Before anything is renamed, ScanRenamer looks
+A rename never writes over an existing file.  Before anything is renamed, ScanWatcher looks
 the whole batch over for three kinds of trouble:
 
 * a file which would land on a name already belonging to a file which is not part of the
@@ -117,13 +117,13 @@ renaming stops and everything already done is put back.
 
 ## The watched folder
 
-`ScanRenamer settings.txt`, in the program's directory, names the folder to watch and the
+`ScanWatcher settings.txt`, in the program's directory, names the folder to watch and the
 prefix the scanner gives its files:
 
     Watch Folder=C:\Users\mlo\Documents\usr\Scanning
     Scan Prefix=z-
 
-A path may be quoted or not, as you please.  The lines are read when ScanRenamer starts, so
+A path may be quoted or not, as you please.  The lines are read when ScanWatcher starts, so
 change them with the program shut down.  Watching needs both of them: with either line
 missing -- or its value commented out, `Watch Folder=#...` -- nothing is watched for, and the
 window says so.
@@ -146,10 +146,10 @@ The watcher is held still while a batch is being renamed or put back.  Windows g
 delivering timer ticks while a dialog is up, so without that a page arriving in the middle of
 a question could reload the batch under the work.
 
-## ScanRenamer state.json
+## ScanWatcher state.json
 
 The retained name and a table of every batch renamed -- when it was done, the name and number
-it was renamed with, and each old-name/new-name pair -- are kept in `ScanRenamer state.json`
+it was renamed with, and each old-name/new-name pair -- are kept in `ScanWatcher state.json`
 in the program's directory.  Undo works off the last entry in that table and removes it when
 it succeeds, so pressing it again walks back through the batches before it.  The last 50 are
 kept -- the file is read and written whole at every rename, so there is nothing to be gained
@@ -162,16 +162,16 @@ boxes in, it never overwrites them.
 
 The file is saved by writing a new one and putting it in the old one's place, so that being
 stopped half way through cannot leave a wrecked file where the table of renames used to be.
-A state file which cannot be read is renamed to `ScanRenamer state (damaged ...).json` and
+A state file which cannot be read is renamed to `ScanWatcher state (damaged ...).json` and
 reported, rather than being quietly written over -- it is the only record of what was renamed
 to what, and an undo can be done by hand from it.
 
 ## If a rename is interrupted
 
-Renaming moves every file of a batch to a temporary name ending in `.ScanRenamerTmp` before
+Renaming moves every file of a batch to a temporary name ending in `.ScanWatcherTmp` before
 giving it its real one.  If the program is killed, or the machine loses power, between those
 two steps, the files are left under those temporary names -- invisible to the watcher and to
-everything else.  ScanRenamer looks for them in the watched folder when it starts and offers
+everything else.  ScanWatcher looks for them in the watched folder when it starts and offers
 to put them back under their own names; it will not put one back over the top of a file which
 has since taken its name.
 
@@ -180,4 +180,4 @@ has since taken its name.
 wxPython is the only requirement:
 
     pip install -r requirements.txt
-    python ScanRenamer.py
+    python ScanWatcher.py
