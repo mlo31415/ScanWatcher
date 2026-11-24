@@ -9,9 +9,9 @@ the "Mode=" line of "ScanWatcher settings.txt":
               of them picked out, Undo Last Rename.  This is what opens when
               there is no Mode line.
     Watcher   A small window which sits and waits, described at WatcherFrame.
-              It counts the scans the scanner drops in the watched folder and,
-              on a name and a press of Rename, renames them "{name} p1",
-              "{name} p2"... and goes back to waiting.
+              It counts the scans the scanner drops in the watched folder after
+              it opens and, on a name and a press of Rename, renames them
+              "{name} p1", "{name} p2"... and goes back to waiting.
 
 Both modes watch the same folder for the same scanner prefix, write the same
 table of renames, and are as careful as each other about never renaming a file
@@ -977,6 +977,8 @@ class ScanWatcherFrame(wx.Frame):
 # folder, counting them as they arrive, and renames the lot on a word from the user.  There is
 # no list and no number: a name is typed, Rename is pressed, and the scans waiting become
 # "{name} p1", "{name} p2"... in name order.
+# Only what arrives after the window opens is counted.  Whatever the folder already held is
+# passed over however it is named: old scans and junk are not this session's work.
 class WatcherFrame(wx.Frame):
     def __init__(self) -> None:
         wx.Frame.__init__(self, None, title="Scan Watcher", size=wx.Size(420, 260))
@@ -987,11 +989,15 @@ class WatcherFrame(wx.Frame):
         self.WatchFolder=settings.get("watch folder", "")
         self.ScanPrefix=settings.get("scan prefix", "")
 
-        # The scans waiting to be renamed, and the ones Clear has thrown out.  A cleared file
-        # is still sitting in the folder, so without remembering it the next look round would
-        # count it all over again and Clear would appear to do nothing.
+        # The scans waiting to be renamed, and the files in the folder which are not to be
+        # counted: whatever was already there when the window opened -- old scans, junk, the
+        # leavings of a previous session, prefix or no prefix -- and anything Clear has since
+        # thrown out.  A cleared file is still sitting in the folder, so without remembering
+        # it the next look round would count it again and Clear would appear to do nothing.
+        # A name drops out of this the moment the file goes, so if the scanner comes to write
+        # that name again -- a fresh session starting at z-_001 -- the new file is new.
         self.Waiting: list[str]=[]
-        self.Cleared: set[str]=set()
+        self.Ignored: set[str]={os.path.normcase(p) for p in ScannerFilesIn(self.WatchFolder, self.ScanPrefix)}
 
         panel=wx.Panel(self)
         sizer=wx.BoxSizer(wx.VERTICAL)
@@ -1063,11 +1069,17 @@ class WatcherFrame(wx.Frame):
         return f"Watching {self.WatchFolder} for {self.ScanPrefix}*.jpg"
 
 
-    # Look at the watched folder.  What is there under the scanner's prefix is what is
-    # waiting, barring anything Clear has thrown out.
+    # Look at the watched folder.  What has arrived under the scanner's prefix since the
+    # window opened is what is waiting, barring anything Clear has thrown out.
     def OnTimer(self, event) -> None:
-        waiting=[p for p in ScannerFilesIn(self.WatchFolder, self.ScanPrefix)
-                 if os.path.normcase(p) not in self.Cleared]
+        scans=ScannerFilesIn(self.WatchFolder, self.ScanPrefix)
+
+        # A file which has gone is nothing to ignore any more; should its name come back it
+        # will be a new file and counted as one.
+        present={os.path.normcase(p) for p in scans}
+        self.Ignored &= present
+
+        waiting=[p for p in scans if os.path.normcase(p) not in self.Ignored]
         if waiting != self.Waiting:
             self.Waiting=waiting
             self.UpdateControls()
@@ -1094,7 +1106,7 @@ class WatcherFrame(wx.Frame):
     # Clear throws out the scans waiting.  The files stay where they are -- they are simply
     # no longer anything this program is waiting to rename.
     def OnClear(self, event) -> None:
-        self.Cleared.update(os.path.normcase(p) for p in self.Waiting)
+        self.Ignored.update(os.path.normcase(p) for p in self.Waiting)
         self.stStatus.SetLabel(f"Stopped waiting for {len(self.Waiting)} scans.  They are still in the folder.")
         self.Waiting=[]
         self.UpdateControls()

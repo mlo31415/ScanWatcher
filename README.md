@@ -199,10 +199,15 @@ Watcher** and waits.  It holds:
 * lower down, a box to type the name in and a **Rename** button, both inactive to begin with
 * **Exit**
 
-As the scanner drops files in the watched folder the count goes up.  Only files carrying the
-Scan Prefix are counted -- anything else in the folder is ignored -- and scans already sitting
-there when the window opens are counted too.  The moment something is waiting, the name box
-becomes active; once there is something typed in it, so does **Rename**.
+As the scanner drops files in the watched folder the count goes up.  Two things are never
+counted: files which do not carry the Scan Prefix, and **whatever was already in the folder
+when the window opened** -- old scans, junk, the leavings of a previous session are not this
+session's work, prefix or no prefix.  The moment something is waiting, the name box becomes
+active; once there is something typed in it, so does **Rename**.
+
+A name stops being ignored as soon as that file goes.  So if you clear the folder out and
+scan again, and the scanner starts over at `z-_001.jpg`, that new file is a new scan and is
+counted.
 
 **Rename** takes the scans waiting, in name order, and renames them
 
