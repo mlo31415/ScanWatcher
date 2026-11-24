@@ -1,5 +1,19 @@
 # ScanWatcher
 
+ScanWatcher renames scanned files, in place, in either of two modes.  Which window opens is
+the `Mode=` line of `ScanWatcher settings.txt`:
+
+| Mode | Window |
+| --- | --- |
+| `Old` (the default) | The batch window: the scans listed beside the names they would be given, files dropped on it or chosen by hand, a run of them picked out, **Undo Last Rename**. |
+| `Watcher` | A small window which sits and waits for the scanner, counts what it drops, and renames the lot on a name and a press of **Rename**. |
+
+Both modes watch the same folder for the same scanner prefix, keep the same table of renames,
+and are as careful as each other about never renaming a file over the top of another.  The
+rest of this README describes Old mode; [Watcher mode](#watcher-mode) is at the end.
+
+## Old mode
+
 Renames a batch of scanned files, in place, to the standard form
 
     XXX num pnnn.ext
@@ -174,6 +188,37 @@ two steps, the files are left under those temporary names -- invisible to the wa
 everything else.  ScanWatcher looks for them in the watched folder when it starts and offers
 to put them back under their own names; it will not put one back over the top of a file which
 has since taken its name.
+
+## Watcher mode
+
+With `Mode=Watcher` in the settings file, ScanWatcher opens a small window titled **Scan
+Watcher** and waits.  It holds:
+
+* **Scans waiting:** and a count of the scans waiting to be renamed, with a **Clear** button
+  beside it
+* lower down, a box to type the name in and a **Rename** button, both inactive to begin with
+* **Exit**
+
+As the scanner drops files in the watched folder the count goes up.  Only files carrying the
+Scan Prefix are counted -- anything else in the folder is ignored -- and scans already sitting
+there when the window opens are counted too.  The moment something is waiting, the name box
+becomes active; once there is something typed in it, so does **Rename**.
+
+**Rename** takes the scans waiting, in name order, and renames them
+
+    {what you typed} p1.ext, {what you typed} p2.ext, ...
+
+numbered from one, all with the same number of digits and no more leading zeroes than the
+batch needs -- `p1`...`p9` for nine scans, `p01`...`p12` for twelve.  There is no issue number
+here: the whole of the name is what you type.  Then the box, the queue and the count are all
+emptied and it goes back to waiting.  Enter in the name box does the same as pressing Rename.
+
+**Clear** stops it waiting for the scans counted so far.  The files stay exactly where they
+are -- they are simply no longer something this window is waiting to rename, and it will not
+count them again.  Scans arriving afterwards are counted as usual.
+
+A rename done here is written to the same table as one done in Old mode, so it can be undone
+with **Undo Last Rename** by opening the program in Old mode.
 
 ## Running it
 

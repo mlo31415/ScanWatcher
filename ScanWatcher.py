@@ -1,6 +1,24 @@
 """
 ScanWatcher.py
 
+Renames scanned files, in place, in either of two modes.  Which window opens is
+the "Mode=" line of "ScanWatcher settings.txt":
+
+    Old       The batch window described below: the scans listed with the names
+              they would be given, files dropped on it or chosen by hand, a run
+              of them picked out, Undo Last Rename.  This is what opens when
+              there is no Mode line.
+    Watcher   A small window which sits and waits, described at WatcherFrame.
+              It counts the scans the scanner drops in the watched folder and,
+              on a name and a press of Rename, renames them "{name} p1",
+              "{name} p2"... and goes back to waiting.
+
+Both modes watch the same folder for the same scanner prefix, write the same
+table of renames, and are as careful as each other about never renaming a file
+over the top of another.
+
+--- Old mode ---------------------------------------------------------------
+
 Renames a batch of scanned files (in place) to the standard form
 
     XXX num pnnn.ext
@@ -955,9 +973,193 @@ class ScanWatcherFrame(wx.Frame):
         event.Skip()
 
 
+# Watcher mode.  The window sits there waiting for the scanner to drop files in the watched
+# folder, counting them as they arrive, and renames the lot on a word from the user.  There is
+# no list and no number: a name is typed, Rename is pressed, and the scans waiting become
+# "{name} p1", "{name} p2"... in name order.
+class WatcherFrame(wx.Frame):
+    def __init__(self) -> None:
+        wx.Frame.__init__(self, None, title="Scan Watcher", size=wx.Size(420, 260))
+
+        self.State=ReadState()
+
+        settings=ReadSettings()
+        self.WatchFolder=settings.get("watch folder", "")
+        self.ScanPrefix=settings.get("scan prefix", "")
+
+        # The scans waiting to be renamed, and the ones Clear has thrown out.  A cleared file
+        # is still sitting in the folder, so without remembering it the next look round would
+        # count it all over again and Clear would appear to do nothing.
+        self.Waiting: list[str]=[]
+        self.Cleared: set[str]=set()
+
+        panel=wx.Panel(self)
+        sizer=wx.BoxSizer(wx.VERTICAL)
+
+        waiting=wx.BoxSizer(wx.HORIZONTAL)
+        waiting.Add(wx.StaticText(panel, label="Scans waiting:"), 0, wx.ALIGN_CENTER_VERTICAL|wx.ALL, 5)
+        self.stWaiting=wx.StaticText(panel, label="0")
+        waiting.Add(self.stWaiting, 0, wx.ALIGN_CENTER_VERTICAL|wx.ALL, 5)
+        waiting.AddStretchSpacer()
+        self.bClear=wx.Button(panel, label="Clear")
+        waiting.Add(self.bClear, 0, wx.ALL, 5)
+        sizer.Add(waiting, 0, wx.EXPAND)
+
+        self.stWatching=wx.StaticText(panel, label=self.WatchingMessage())
+        sizer.Add(self.stWatching, 0, wx.ALL, 5)
+
+        sizer.AddStretchSpacer()
+
+        sizer.Add(wx.StaticText(panel, label="Name the scans are to be given:"), 0, wx.LEFT|wx.TOP, 5)
+        self.tName=wx.TextCtrl(panel, style=wx.TE_PROCESS_ENTER)
+        self.tName.Enable(False)                    # Nothing to name until something is waiting
+        sizer.Add(self.tName, 0, wx.EXPAND|wx.ALL, 5)
+
+        self.stStatus=wx.StaticText(panel, label="")
+        sizer.Add(self.stStatus, 0, wx.ALL, 5)
+
+        buttons=wx.BoxSizer(wx.HORIZONTAL)
+        self.bRename=wx.Button(panel, label="Rename")
+        self.bRename.SetBackgroundColour(wx.Colour(*HighlightColour))    # The button the work is done with
+        self.bRename.SetForegroundColour(wx.Colour(*HighlightTextColour))
+        self.bRename.Enable(False)
+        buttons.Add(self.bRename, 0, wx.ALL, 5)
+        buttons.AddStretchSpacer()
+        self.bExit=wx.Button(panel, label="Exit")
+        buttons.Add(self.bExit, 0, wx.ALL, 5)
+        sizer.Add(buttons, 0, wx.EXPAND)
+
+        panel.SetSizer(sizer)
+
+        self.tName.Bind(wx.EVT_TEXT, self.OnNameChanged)
+        self.tName.Bind(wx.EVT_TEXT_ENTER, self.OnNameEntered)
+        self.bClear.Bind(wx.EVT_BUTTON, self.OnClear)
+        self.bRename.Bind(wx.EVT_BUTTON, self.OnRename)
+        self.bExit.Bind(wx.EVT_BUTTON, self.OnExit)
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
+
+        self.Timer=wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, self.OnTimer, self.Timer)
+        if self.Watching():
+            self.Timer.Start(WatchInterval)
+            self.OnTimer(None)      # Count what is already there without waiting a tick
+
+        self.UpdateControls()
+        self.Centre()
+
+
+    # Watching needs both a folder to watch and the prefix to watch for.
+    def Watching(self) -> bool:
+        return len(self.WatchFolder) > 0 and len(self.ScanPrefix) > 0
+
+
+    def WatchingMessage(self) -> str:
+        if len(self.WatchFolder) == 0:
+            return f"Not watching a folder.  (Add a 'Watch Folder=' line to {SettingsFileName}.)"
+        if len(self.ScanPrefix) == 0:
+            return f"Not watching a folder.  (Add a 'Scan Prefix=' line to {SettingsFileName}.)"
+        if not os.path.isdir(self.WatchFolder):
+            return f"Watch Folder '{self.WatchFolder}' does not exist."
+        return f"Watching {self.WatchFolder} for {self.ScanPrefix}*.jpg"
+
+
+    # Look at the watched folder.  What is there under the scanner's prefix is what is
+    # waiting, barring anything Clear has thrown out.
+    def OnTimer(self, event) -> None:
+        waiting=[p for p in ScannerFilesIn(self.WatchFolder, self.ScanPrefix)
+                 if os.path.normcase(p) not in self.Cleared]
+        if waiting != self.Waiting:
+            self.Waiting=waiting
+            self.UpdateControls()
+
+
+    # The name can be typed once something is waiting to be named, and Rename pressed once
+    # something has been typed.
+    def UpdateControls(self) -> None:
+        self.stWaiting.SetLabel(str(len(self.Waiting)))
+        self.tName.Enable(len(self.Waiting) > 0)
+        self.bRename.Enable(len(self.Waiting) > 0 and len(self.tName.GetValue().strip()) > 0)
+        self.bClear.Enable(len(self.Waiting) > 0)
+
+
+    def OnNameChanged(self, event) -> None:
+        self.UpdateControls()
+
+
+    def OnNameEntered(self, event) -> None:
+        if self.bRename.IsEnabled():
+            self.OnRename(event)
+
+
+    # Clear throws out the scans waiting.  The files stay where they are -- they are simply
+    # no longer anything this program is waiting to rename.
+    def OnClear(self, event) -> None:
+        self.Cleared.update(os.path.normcase(p) for p in self.Waiting)
+        self.stStatus.SetLabel(f"Stopped waiting for {len(self.Waiting)} scans.  They are still in the folder.")
+        self.Waiting=[]
+        self.UpdateControls()
+
+
+    def OnRename(self, event) -> None:
+        with WatchingPaused(self):
+            self.RenameWaiting()
+
+
+    def RenameWaiting(self) -> None:
+        name=self.tName.GetValue().strip()
+        if len(self.Waiting) == 0 or len(name) == 0:
+            return
+
+        bad=[c for c in IllegalCharacters if c in name]
+        if len(bad) > 0:
+            wx.MessageBox(f"The name may not contain {' '.join(bad)}", "Scan Watcher", wx.OK|wx.ICON_INFORMATION)
+            return
+
+        pairs=BuildNewNames(SortByName(self.Waiting), name, "")
+
+        report=ConflictReport(pairs)
+        if report != "":
+            wx.MessageBox(f"The scans cannot be renamed as things stand:\n\n{report}\n\nNothing was renamed.",
+                          "Scan Watcher", wx.OK|wx.ICON_ERROR)
+            return
+
+        msg=RenameFiles(pairs)
+        if msg != "":
+            wx.MessageBox(msg, "Scan Watcher", wx.OK|wx.ICON_ERROR)
+            return
+
+        # Keep the batch, so that a rename done here can be undone in the other mode.
+        self.State["Batches"].append({"When": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                      "Title": name,
+                                      "Number": "",
+                                      "Renames": [[o, n] for o, n in pairs]})
+        self.State["Batches"]=self.State["Batches"][-MaxBatchesKept:]
+        WriteState(self.State)
+
+        # Back to waiting: the box emptied, the queue emptied, the counter at nothing.
+        self.tName.SetValue("")
+        self.Waiting=[]
+        self.UpdateControls()
+        self.stStatus.SetLabel(f"Renamed {len(pairs)} scans.  Waiting for more.")
+
+
+    def OnExit(self, event) -> None:
+        self.Close()
+
+
+    def OnClose(self, event) -> None:
+        self.Timer.Stop()
+        event.Skip()
+
+
 def main() -> None:
     app=wx.App(False)
-    frame=ScanWatcherFrame()
+
+    # Which window opens is the Mode line of the settings file: the batch window the program
+    # has always had, or the one which sits and waits for the scanner.
+    mode=ReadSettings().get("mode", "Old")
+    frame=WatcherFrame() if mode.casefold() == "watcher" else ScanWatcherFrame()
+
     frame.Show()
     app.MainLoop()
     sys.exit()

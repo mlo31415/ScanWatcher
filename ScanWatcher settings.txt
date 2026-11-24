@@ -13,3 +13,18 @@
 
 Watch Folder="C:\Users\mlo\Documents\usr\Scanning"
 Scan Prefix=z-
+
+# Mode is which of the two windows ScanWatcher opens, and is read at startup like the rest.
+#
+#   Old       The batch window: the scans are listed with the names they would be given,
+#             files can be dropped on it or chosen by hand, a run of them can be picked out,
+#             and there is an Undo Last Rename.
+#   Watcher   A small window which sits and waits.  It counts the scans the scanner drops in
+#             the Watch Folder, and when a name is typed and Rename pressed it renames those
+#             scans "{name} p1", "{name} p2"... in name order and goes back to waiting.
+#             Clear stops it waiting for the scans counted so far (the files stay put).
+#
+# Anything other than "Watcher" (and a missing Mode line) means Old.
+
+Mode=Watcher
+
